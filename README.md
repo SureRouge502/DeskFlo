@@ -10,10 +10,6 @@
 
 ![DeskFlo Sprint Board](static/DeskFlo-demo-screenshots-2.png)
 
-![DeskFlo Screenshot 3](static/Deskflo-demo-screenshot3.png)
-
-![DeskFlo Screenshot 4](static/Deskflo-demo-screenshot4.png)
-
 ![DeskFlo Screenshot 5](static/Deskflo-demo-screenshot5.png)
 
 ![DeskFlo Screenshot 6](static/Deskflo-demo-screenshot6.png)
