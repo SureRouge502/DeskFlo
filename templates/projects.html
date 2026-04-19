@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Projects — DeskFlo{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <div class="page-title">Projects</div>
+        <div class="page-subtitle">{{ projects|length }} project{{ 's' if projects|length != 1 }}</div>
+    </div>
+    <button class="btn btn-primary" onclick="document.getElementById('new-project-modal').classList.add('visible')">+ New Project</button>
+</div>
+
+{% if projects %}
+<div class="sort-bar">
+    <span class="sort-bar-label">Sort by</span>
+    <div class="sort-options" id="sort-options">
+        <button class="sort-btn active" data-sort="active-sprint"><i data-lucide="zap"></i> Active Sprint</button>
+        <button class="sort-btn" data-sort="date-created"><i data-lucide="calendar-days"></i> Date Created</button>
+        <button class="sort-btn" data-sort="name">Name A→Z</button>
+        <button class="sort-btn" data-sort="most-tasks"><i data-lucide="list"></i> Most Tasks</button>
+        <button class="sort-btn" data-sort="category"><i data-lucide="tag"></i> Category</button>
+    </div>
+</div>
+<div class="projects-grid" id="projects-grid">
+    {% for p in projects %}
+    <a href="{{ url_for('project_detail', project_id=p.project_id) }}" class="project-card"
+       data-name="{{ p.name|lower }}"
+       data-created="{{ p.created_at }}"
+       data-task-count="{{ p.task_count }}"
+       data-category="{{ p.category|lower }}"
+       data-has-active="{{ p.has_active_sprint }}"
+       data-active-open="{{ p.active_open_tasks }}">
+        <div class="flex-between">
+            <div class="project-card-name">{{ p.name }}</div>
+            <div style="display:flex;gap:0.4rem;align-items:center;">
+                {% if p.has_active_sprint %}<span class="sprint-active-dot" title="{{ p.active_open_tasks }} open tasks in active sprint"></span>{% endif %}
+                <span class="project-cat cat-{{ p.category }}">{{ p.category }}</span>
+            </div>
+        </div>
+        {% if p.description %}
+        <div class="project-card-desc">{{ p.description }}</div>
+        {% endif %}
+        <div class="project-card-meta">
+            <span class="text-xs text-muted">{{ p.task_count }} tasks</span>
+            <span class="text-xs text-muted">·</span>
+            <span class="text-xs text-muted">{{ p.sprint_count }} sprints</span>
+            {% if p.has_active_sprint %}
+            <span class="text-xs text-muted">·</span>
+            <span class="text-xs" style="color:var(--green);">{{ p.active_open_tasks }} open</span>
+            {% endif %}
+            <span class="text-xs text-muted">·</span>
+            <span class="text-xs text-muted {% if p.status == 'archived' %}red{% endif %}">{{ p.status }}</span>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="backlog-empty">
+    <div class="backlog-empty-icon"><i data-lucide="folder-open"></i></div>
+    <div class="text-muted">No projects yet. Create your first one!</div>
+</div>
+{% endif %}
+
+<!-- New Project Modal -->
+<div class="modal-overlay" id="new-project-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">New Project</div>
+            <button class="modal-close" onclick="document.getElementById('new-project-modal').classList.remove('visible')">×</button>
+        </div>
+        <form method="post" action="{{ url_for('create_project_route') }}">
+            <div class="form-group">
+                <label>Project Name <span class="required">*</span></label>
+                <input class="form-input" name="name" placeholder="e.g. DeskFlo, Health Journey" required>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea class="form-textarea" name="description" placeholder="What is this project about?"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Category</label>
+                <input class="form-input" name="category" id="cat-input-proj"
+                       list="cat-list-proj" placeholder="e.g. Career, Health…"
+                       autocomplete="off">
+                <datalist id="cat-list-proj">
+                    {% for cat in categories %}<option value="{{ cat }}">{% endfor %}
+                </datalist>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('new-project-modal').classList.remove('visible')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create Project</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const grid = document.getElementById('projects-grid');
+if (grid) {
+    const btns = document.querySelectorAll('.sort-btn');
+
+    function sortCards(key) {
+        const cards = [...grid.querySelectorAll('.project-card')];
+        cards.sort((a, b) => {
+            switch (key) {
+                case 'active-sprint': {
+                    const aActive = parseInt(a.dataset.hasActive);
+                    const bActive = parseInt(b.dataset.hasActive);
+                    if (aActive !== bActive) return bActive - aActive;
+                    const aOpen = parseInt(a.dataset.activeOpen);
+                    const bOpen = parseInt(b.dataset.activeOpen);
+                    if (aOpen !== bOpen) return bOpen - aOpen;
+                    return b.dataset.created.localeCompare(a.dataset.created);
+                }
+                case 'date-created':
+                    return b.dataset.created.localeCompare(a.dataset.created);
+                case 'name':
+                    return a.dataset.name.localeCompare(b.dataset.name);
+                case 'most-tasks':
+                    return parseInt(b.dataset.taskCount) - parseInt(a.dataset.taskCount);
+                case 'category': {
+                    const catCmp = a.dataset.category.localeCompare(b.dataset.category);
+                    return catCmp !== 0 ? catCmp : a.dataset.name.localeCompare(b.dataset.name);
+                }
+            }
+        });
+        cards.forEach(c => grid.appendChild(c));
+    }
+
+    btns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            btns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            sortCards(btn.dataset.sort);
+        });
+    });
+
+    sortCards('active-sprint');
+}
+</script>
+{% endblock %}

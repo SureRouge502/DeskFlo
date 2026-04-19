@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Activity Log — DeskFlo{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <div class="page-title">Activity Log</div>
+        <div class="page-subtitle">{{ logs|length }} entries</div>
+    </div>
+    <form method="get" class="flex gap-1">
+        <select class="form-select" name="project_id" style="width:180px" onchange="this.form.submit()">
+            <option value="">All Projects</option>
+            {% for p in projects %}
+            <option value="{{ p.project_id }}" {% if filter_pid == p.project_id %}selected{% endif %}>{{ p.name }}</option>
+            {% endfor %}
+        </select>
+    </form>
+</div>
+
+<div class="card">
+    {% if logs %}
+    <table class="log-table">
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Project</th>
+                <th>Action</th>
+                <th>Details</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for log in logs %}
+        <tr>
+            <td class="text-xs text-muted" style="white-space:nowrap">{{ log.timestamp }}</td>
+            <td class="text-sm">{{ log.project_name or '—' }}</td>
+            <td><span class="log-action">{{ log.action }}</span></td>
+            <td class="text-sm">{{ log.details or '—' }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="backlog-empty">
+        <div class="backlog-empty-icon"><i data-lucide="scroll-text"></i></div>
+        <div class="text-muted">No activity yet.</div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

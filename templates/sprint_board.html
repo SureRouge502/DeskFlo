@@ -1,0 +1,330 @@
+{% extends "base.html" %}
+{% block title %}{{ sprint.name }} — DeskFlo{% endblock %}
+
+{% block content %}
+<div class="sprint-page">
+    <div class="sprint-page-header">
+        <a href="{{ url_for('project_detail', project_id=project.project_id) }}" class="btn btn-ghost btn-sm">← {{ project.name }}</a>
+        <div>
+            <strong>{{ sprint.name }}</strong>
+            <span class="text-xs text-muted"> · {{ sprint.start_date }} → {{ sprint.end_date }}</span>
+        </div>
+        <div class="view-toggle">
+            <button class="view-btn active" id="btn-board" onclick="setView('board')"><i data-lucide="layout-grid"></i> Board</button>
+            <button class="view-btn" id="btn-calendar" onclick="setView('calendar')"><i data-lucide="calendar-days"></i> Calendar</button>
+        </div>
+        <div class="flex gap-1" style="margin-left:auto">
+            {% if sprint.status == 'active' %}
+            <form method="post" action="{{ url_for('complete_sprint_route', sprint_id=sprint.sprint_id) }}"
+                  onsubmit="return confirm('Complete sprint? Unfinished tasks return to backlog.')">
+                <button class="btn btn-success btn-sm"><i data-lucide="check"></i> Complete Sprint</button>
+            </form>
+            {% endif %}
+            <button class="btn btn-primary btn-sm" onclick="document.getElementById('add-task-modal').classList.add('visible')"><i data-lucide="plus"></i> Add Task</button>
+        </div>
+    </div>
+
+    <!-- Board View -->
+    <div class="board-view" id="board-view">
+        <div class="sprint-board-columns">
+            {% for col_key, col_label in [('todo','To Do'),('inprogress','In Progress'),('done','Done')] %}
+            <div class="board-col col-{{ col_key }}"
+                 ondragover="event.preventDefault(); this.querySelector('.board-col-body').classList.add('drag-over')"
+                 ondragleave="this.querySelector('.board-col-body').classList.remove('drag-over')"
+                 ondrop="handleDrop(event, '{{ col_key }}')">
+                <div class="board-col-header">
+                    {{ col_label }}
+                    <span class="col-count">{{ board[col_key]|length }}</span>
+                </div>
+                <div class="board-col-body">
+                    {% for task in board[col_key] %}
+                    <div class="task-card"
+                         draggable="true"
+                         data-task-id="{{ task.task_id }}"
+                         ondragstart="handleDragStart(event)"
+                         onclick="openDrawer({{ task.task_id }})">
+                        <div class="task-card-title">{{ task.title }}</div>
+                        <div class="task-card-meta">
+                            <span class="badge badge-{{ task.status }}">{{ task.status }}</span>
+                            <span class="priority-{{ task.priority }} text-xs">{{ task.priority }}</span>
+                            {% if task.label %}<span class="text-xs text-muted">{{ task.label }}</span>{% endif %}
+                            {% if task.due_date %}
+                            <span class="task-card-due {% if task.due_date < today_str %}overdue{% endif %}"><i data-lucide="calendar-days"></i> {{ task.due_date | short_date }}</span>
+                            {% endif %}
+                        </div>
+                        {% if task.subtask_count %}
+                        <div class="subtask-bar mt-1">
+                            <div class="subtask-bar-fill" style="width:{{ ((task.subtask_done or 0)/task.subtask_count*100)|int }}%"></div>
+                        </div>
+                        <div class="subtask-progress">{{ task.subtask_done or 0 }}/{{ task.subtask_count }} subtasks</div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Calendar View -->
+    <div class="calendar-view" id="calendar-view">
+        <div class="card" style="max-width:700px;margin:0 auto;">
+            <div class="cal-header" style="margin-bottom:1rem">
+                <button class="cal-nav" onclick="navigateCal(-1)">‹</button>
+                <div class="cal-title" id="cal-month-label">{{ month_name }} {{ year }}</div>
+                <button class="cal-nav" onclick="navigateCal(1)">›</button>
+            </div>
+            <div class="cal-grid" id="cal-grid">
+                {% for d in ['Su','Mo','Tu','We','Th','Fr','Sa'] %}
+                <div class="cal-day-name">{{ d }}</div>
+                {% endfor %}
+                {% for week in cal_matrix %}
+                    {% for day in week %}
+                    {% if day == 0 %}
+                    <div class="cal-day empty"></div>
+                    {% else %}
+                    {% set date_str = '%s-%02d-%02d'|format(year, month, day) %}
+                    <div class="cal-day
+                        {% if day == today_day %}today{% endif %}
+                        {% if date_str in due_dates %}has-tasks{% endif %}"
+                         data-date="{{ date_str }}"
+                         onclick="calDayClick(this)">
+                        {{ day }}
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                {% endfor %}
+            </div>
+            <div id="cal-tasks-panel" class="mt-2"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Task Detail Modal -->
+<div class="modal-overlay" id="task-modal" onclick="if(event.target===this)closeDrawer()">
+    <div class="modal" style="width:520px;" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <div class="drawer-title modal-title" id="drawer-title">Loading…</div>
+            <button class="modal-close" onclick="closeDrawer()"><i data-lucide="x"></i></button>
+        </div>
+        <div id="drawer-body"></div>
+    </div>
+</div>
+
+<!-- Add Task to Sprint Modal -->
+<div class="modal-overlay" id="add-task-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">Add Task to Sprint</div>
+            <button class="modal-close" onclick="document.getElementById('add-task-modal').classList.remove('visible')"><i data-lucide="x"></i></button>
+        </div>
+        <form method="post" action="{{ url_for('create_task_route', project_id=project.project_id) }}">
+            <input type="hidden" name="sprint_id" value="{{ sprint.sprint_id }}">
+            <div class="form-group">
+                <label>Title <span class="required">*</span></label>
+                <input class="form-input" name="title" required>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea class="form-textarea" name="description"></textarea>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Priority</label>
+                    <select class="form-select" name="priority">
+                        {% for p in priorities %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Label</label>
+                    <select class="form-select" name="label">
+                        <option value="">None</option>
+                        {% for l in labels %}<option value="{{ l }}">{{ l }}</option>{% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Category</label>
+                    <input class="form-input" name="category" id="cat-input-sprint"
+                       list="cat-list-sprint" placeholder="e.g. Career, Health…"
+                       autocomplete="off">
+                    <datalist id="cat-list-sprint">
+                        {% for c in categories %}<option value="{{ c }}">{% endfor %}
+                    </datalist>
+                </div>
+                <div class="form-group">
+                    <label>Due Date</label>
+                    <input class="form-input" type="date" name="due_date">
+                </div>
+            </div>
+            <div class="form-group">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.4rem;">
+                    <label style="margin-bottom:0">Subtasks</label>
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="addSubtaskRow('subtask-rows-sprint')" style="font-size:0.75rem;padding:0.2rem 0.5rem;">+ Add</button>
+                </div>
+                <div id="subtask-rows-sprint"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('add-task-modal').classList.remove('visible')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Add Task</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="cal-popup" id="cal-popup"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const TODAY_STR = "{{ today_str }}";
+let dragTaskId = null;
+let calYear = {{ year }}, calMonth = {{ month }};
+
+function setView(v) {
+    document.getElementById('board-view').classList.toggle('hidden', v !== 'board');
+    document.getElementById('calendar-view').classList.toggle('visible', v === 'calendar');
+    document.getElementById('btn-board').classList.toggle('active', v === 'board');
+    document.getElementById('btn-calendar').classList.toggle('active', v === 'calendar');
+}
+
+function handleDragStart(e) {
+    dragTaskId = e.currentTarget.dataset.taskId;
+    e.currentTarget.classList.add('dragging');
+}
+function handleDrop(e, status) {
+    e.preventDefault();
+    e.currentTarget.querySelector('.board-col-body').classList.remove('drag-over');
+    if (!dragTaskId) return;
+    fetch(`/api/tasks/${dragTaskId}/move`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({status})
+    }).then(r=>r.json()).then(d => { if(d.success) location.reload(); else alert(d.error); });
+}
+document.addEventListener('dragend', () => {
+    document.querySelectorAll('.task-card').forEach(c=>c.classList.remove('dragging'));
+    document.querySelectorAll('.board-col-body').forEach(c=>c.classList.remove('drag-over'));
+});
+
+function openDrawer(taskId) {
+    document.getElementById('task-modal').classList.add('visible');
+    document.getElementById('drawer-title').textContent = 'Loading…';
+    document.getElementById('drawer-body').innerHTML = '';
+    fetch(`/api/tasks/${taskId}`).then(r=>r.json()).then(renderDrawer);
+}
+function closeDrawer() {
+    document.getElementById('task-modal').classList.remove('visible');
+}
+
+function addSubtaskRow(containerId) {
+    const container = document.getElementById(containerId);
+    const idx = container.children.length;
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:0.4rem;margin-bottom:0.4rem;align-items:center;';
+    row.innerHTML = `<input class="form-input" name="subtask_titles" placeholder="Subtask ${idx+1}…" style="flex:1">
+        <button type="button" onclick="this.parentElement.remove()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.1rem;line-height:1;">×</button>`;
+    container.appendChild(row);
+    container.lastChild.querySelector('input').focus();
+}
+function renderDrawer(t) {
+    document.getElementById('drawer-title').textContent = t.title;
+    const subtasksHtml = t.subtasks.length ? `
+        <div class="drawer-section">
+            <div class="drawer-section-title">Subtasks (${t.subtasks.filter(s=>s.status==='done').length}/${t.subtasks.length})</div>
+            <div class="subtask-list">
+            ${t.subtasks.map(s=>`
+                <div class="subtask-item ${s.status==='done'?'done':''}" id="st-${s.task_id}">
+                    <input type="checkbox" class="subtask-check" ${s.status==='done'?'checked':''} onchange="completeSubtask(${s.task_id},this)" ${s.status==='done'?'disabled':''}>
+                    <span class="subtask-title">${s.title}</span>
+                    ${s.due_date?`<span class="text-xs text-muted">${s.due_date}</span>`:''}
+                </div>`).join('')}
+            </div>
+            <form method="post" action="/tasks/${t.task_id}/subtask/create" style="margin-top:0.75rem;display:flex;gap:0.5rem;">
+                <input class="form-input" name="title" placeholder="Add subtask…" required>
+                <input type="hidden" name="priority" value="medium">
+                <button class="btn btn-primary btn-sm">+</button>
+            </form>
+        </div>` : `
+        <div class="drawer-section">
+            <div class="drawer-section-title">Subtasks</div>
+            <form method="post" action="/tasks/${t.task_id}/subtask/create" style="display:flex;gap:0.5rem;">
+                <input class="form-input" name="title" placeholder="Add subtask…" required>
+                <input type="hidden" name="priority" value="medium">
+                <button class="btn btn-primary btn-sm">+</button>
+            </form>
+        </div>`;
+    const commentsHtml = `
+        <div class="drawer-section">
+            <div class="drawer-section-title">Comments</div>
+            <div class="comment-list">${t.comments.map(c=>`
+                <div class="comment-item">
+                    <div class="comment-meta">${c.created_at}</div>
+                    <div>${c.content}</div>
+                </div>`).join('')}</div>
+            <form class="comment-form" method="post" action="/tasks/${t.task_id}/comment">
+                <input class="form-input" name="content" placeholder="Add a comment…" required>
+                <button class="btn btn-primary btn-sm">Send</button>
+            </form>
+        </div>`;
+    const actionsHtml = `
+        <div class="drawer-section flex gap-1" style="flex-wrap:wrap">
+            <form method="post" action="/tasks/${t.task_id}/delete" onsubmit="return confirm('Delete task?')">
+                <button class="btn btn-danger btn-sm"><i data-lucide="trash-2"></i> Delete</button>
+            </form>
+            <form method="post" action="/tasks/${t.task_id}/remove-from-sprint">
+                <button class="btn btn-ghost btn-sm"><i data-lucide="corner-down-left"></i> To Backlog</button>
+            </form>
+        </div>`;
+    document.getElementById('drawer-body').innerHTML = `
+        <div class="drawer-section">
+            <div class="drawer-meta-grid">
+                <div class="drawer-meta-item"><div class="drawer-meta-label">Status</div><span class="badge badge-${t.status}">${t.status}</span></div>
+                <div class="drawer-meta-item"><div class="drawer-meta-label">Priority</div><span class="priority-${t.priority}">${t.priority}</span></div>
+                <div class="drawer-meta-item"><div class="drawer-meta-label">Due Date</div>${t.due_date||'—'}</div>
+                <div class="drawer-meta-item"><div class="drawer-meta-label">Category</div>${t.category||'—'}</div>
+                <div class="drawer-meta-item"><div class="drawer-meta-label">Label</div>${t.label||'—'}</div>
+            </div>
+        </div>
+        ${t.description?`<div class="drawer-section"><div class="drawer-section-title">Description</div><div class="text-sm">${t.description}</div></div>`:''}
+        ${subtasksHtml}${commentsHtml}${actionsHtml}`;
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+function completeSubtask(taskId, cb) {
+    fetch(`/api/tasks/${taskId}/subtask/complete`,{method:'POST'})
+        .then(r=>r.json()).then(d=>{
+            if(d.success){document.getElementById(`st-${taskId}`).classList.add('done');cb.disabled=true;}
+            else{alert(d.error);cb.checked=false;}
+        });
+}
+
+function calDayClick(el) {
+    const date = el.dataset.date; if(!date) return;
+    fetch(`/api/calendar/date/${date}`).then(r=>r.json()).then(tasks=>{
+        const panel = document.getElementById('cal-tasks-panel');
+        if(!tasks.length){panel.innerHTML='<p class="text-muted text-sm" style="text-align:center">No tasks due on this day.</p>';return;}
+        panel.innerHTML=`<div class="card-title text-xs text-muted mb-1">Tasks due ${date}</div>`+
+            tasks.map(t=>`<div class="backlog-item" style="margin-bottom:0.4rem">
+                <div class="backlog-item-body">
+                    <div class="backlog-item-title">${t.title}</div>
+                    <div class="backlog-item-meta">
+                        <span class="badge badge-${t.status}">${t.status}</span>
+                        <span class="priority-${t.priority}">${t.priority}</span>
+                    </div>
+                </div></div>`).join('');
+    });
+}
+function navigateCal(dir) {
+    calMonth+=dir;
+    if(calMonth<1){calMonth=12;calYear--;}
+    if(calMonth>12){calMonth=1;calYear++;}
+    document.getElementById('cal-month-label').textContent=
+        new Date(calYear,calMonth-1).toLocaleString('default',{month:'long'})+' '+calYear;
+    fetch(`/api/calendar/${calYear}/${calMonth}`).then(r=>r.json()).then(data=>{
+        document.querySelectorAll('.cal-day[data-date]').forEach(el=>{
+            el.classList.toggle('has-tasks', el.dataset.date in data);
+        });
+    });
+}
+</script>
+{% endblock %}

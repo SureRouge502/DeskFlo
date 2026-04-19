@@ -1,0 +1,629 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }} — DeskFlo{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <div class="page-title">{{ project.name }}</div>
+        <div class="page-subtitle">
+            <span class="project-cat cat-{{ project.category }}">{{ project.category }}</span>
+            {% if project.description %} · {{ project.description }}{% endif %}
+        </div>
+    </div>
+    <div class="flex gap-1">
+        <button class="btn btn-secondary" onclick="document.getElementById('edit-project-modal').classList.add('visible')"><i data-lucide="pencil"></i> Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="document.getElementById('delete-project-modal').classList.add('visible')"><i data-lucide="trash-2"></i> Delete</button>
+    </div>
+</div>
+
+<!-- Active Sprint Banner -->
+{% if active_sprint %}
+<div class="card mb-2" style="border-color: var(--accent-dim); background: var(--accent-soft);">
+    <div class="flex-between">
+        <div>
+            <div class="flex-center gap-1">
+                <span style="color:var(--accent)"><i data-lucide="zap"></i> Active:</span>
+                <strong>{{ active_sprint.name }}</strong>
+            </div>
+            <div class="text-xs text-muted mt-1">{{ active_sprint.start_date }} → {{ active_sprint.end_date }} · {{ active_sprint.goal or 'No goal set' }}</div>
+        </div>
+        <div class="flex gap-1">
+            <a href="{{ url_for('sprint_board', sprint_id=active_sprint.sprint_id) }}" class="btn btn-primary btn-sm">Open Board →</a>
+            <form method="post" action="{{ url_for('complete_sprint_route', sprint_id=active_sprint.sprint_id) }}"
+                  onsubmit="return confirm('Complete this sprint? Unfinished tasks will return to backlog.')">
+                <button class="btn btn-success btn-sm"><i data-lucide="check"></i> Complete Sprint</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="project-detail-grid">
+
+    <!-- LEFT: Backlog -->
+    <div>
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title"><i data-lucide="list"></i> Backlog <span class="col-count" style="margin-left:0.4rem">{{ backlog_count }}</span></div>
+                <button class="btn btn-primary btn-sm" onclick="document.getElementById('new-task-modal').classList.add('visible')"><i data-lucide="plus"></i> New Task</button>
+            </div>
+
+            <!-- Assign bar — hidden until checkbox selected -->
+            <div id="assign-bar" style="display:none; margin-bottom:0.75rem; padding:0.6rem 0.5rem; background:var(--surface2); border-radius:8px; border:1px solid var(--border);">
+                <form method="post" action="{{ url_for('assign_bulk_route') }}" id="bulk-form">
+                    <input type="hidden" name="project_id" value="{{ project.project_id }}">
+                    <div class="flex gap-1" style="flex-wrap:wrap;align-items:center;">
+                        <label style="font-size:0.78rem;font-weight:600;color:var(--text-muted);white-space:nowrap;">
+                            Move <span id="selected-count">0</span> selected to:
+                        </label>
+                        <select class="form-select" name="sprint_id" id="sprint-select" style="flex:1;min-width:160px;">
+                            <option value="">Choose sprint…</option>
+                            {% for s in sprints %}
+                            <option value="{{ s.sprint_id }}">{{ s.name }} ({{ s.status }})</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-primary btn-sm" onclick="return copyCheckboxes()">→ Assign</button>
+                        <button type="button" class="btn btn-secondary btn-sm" id="edit-task-btn" style="display:none" onclick="openEditModal()"><i data-lucide="pencil"></i> Edit</button>
+                        <button type="button" class="btn btn-secondary btn-sm" id="dup-task-btn" onclick="duplicateSelected()"><i data-lucide="copy"></i> Duplicate</button>
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="clearAll()"><i data-lucide="x"></i> Clear</button>
+                    </div>
+                    <!-- Hidden checkboxes copied here by JS -->
+                    <div id="hidden-checkboxes"></div>
+                </form>
+            </div>
+
+            <!-- Select all -->
+            {% if backlog_tasks %}
+            <div style="padding:0 0 0.5rem; display:flex; align-items:center; gap:0.5rem;">
+                <input type="checkbox" id="select-all-cb" onchange="toggleSelectAll(this)"
+                       style="accent-color:var(--accent);cursor:pointer;">
+                <label for="select-all-cb" style="font-size:0.75rem;color:var(--text-muted);cursor:pointer;">Select all</label>
+            </div>
+
+            <div class="backlog-list" id="backlog-list">
+                {% for task in backlog_tasks %}
+                <div class="backlog-item">
+                    <input type="checkbox" class="backlog-checkbox task-cb" value="{{ task.task_id }}"
+                           onchange="onCheckboxChange()">
+                    <div class="backlog-item-body" onclick="openDrawer({{ task.task_id }})" style="cursor:pointer">
+                        <div class="backlog-item-title">{{ task.title }}</div>
+                        <div class="backlog-item-meta">
+                            <span class="priority-{{ task.priority }} text-xs">{{ task.priority }}</span>
+                            {% if task.label %}<span class="badge" style="font-size:0.68rem">{{ task.label }}</span>{% endif %}
+                            <span class="project-cat cat-{{ task.category }} text-xs">{{ task.category }}</span>
+                            {% if task.due_date %}<span class="task-card-due {% if task.due_date < today_str %}overdue{% endif %}"><i data-lucide="calendar-days"></i> {{ task.due_date | short_date }}</span>{% endif %}
+                        </div>
+                    </div>
+                    <div class="backlog-item-actions">
+                        <form method="post" action="{{ url_for('delete_task_route', task_id=task.task_id) }}"
+                              onsubmit="return confirm('Delete task?')">
+                            <button class="btn btn-danger btn-sm"><i data-lucide="trash-2"></i></button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="backlog-empty" style="padding:2rem 1rem; text-align:center;">
+                <div class="backlog-empty-icon"><i data-lucide="inbox"></i></div>
+                <div class="text-muted" style="margin-bottom:0.75rem;">Backlog is empty.</div>
+                <p class="text-xs text-muted" style="max-width:240px;margin:0 auto 1rem;">
+                    Add tasks here first, then assign them to a sprint before starting it.
+                </p>
+                <button class="btn btn-primary btn-sm" onclick="document.getElementById('new-task-modal').classList.add('visible')">+ Add First Task</button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- RIGHT: Sprints -->
+    <div>
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title"><i data-lucide="zap"></i> Sprints</div>
+                <button class="btn btn-primary btn-sm" onclick="document.getElementById('new-sprint-modal').classList.add('visible')"><i data-lucide="plus"></i> New Sprint</button>
+            </div>
+            {% if sprints %}
+            <table class="log-table">
+                <thead>
+                    <tr><th>Name</th><th>Dates</th><th>Progress</th><th>Status</th><th></th></tr>
+                </thead>
+                <tbody>
+                {% for sprint in sprints %}
+                <tr>
+                    <td>
+                        <strong>{{ sprint.name }}</strong>
+                        {% if sprint.goal %}<div class="text-xs text-muted">{{ sprint.goal }}</div>{% endif %}
+                    </td>
+                    <td class="text-xs text-muted">{{ sprint.start_date }}<br>→ {{ sprint.end_date }}</td>
+                    <td>
+                        {% if sprint.task_count %}
+                        <div style="display:flex;align-items:center;gap:0.4rem;">
+                            <div class="sprint-bar" style="width:70px">
+                                <div class="sprint-bar-fill" style="width:{{ ((sprint.done_count or 0)/sprint.task_count*100)|int }}%"></div>
+                            </div>
+                            <span class="text-xs text-muted">{{ sprint.done_count or 0 }}/{{ sprint.task_count }}</span>
+                        </div>
+                        {% else %}
+                        <span class="text-muted text-xs">Empty</span>
+                        {% endif %}
+                    </td>
+                    <td><span class="log-action">{{ sprint.status }}</span></td>
+                    <td>
+                        <div class="flex gap-1">
+                            {% if sprint.status == 'planning' %}
+                            <form method="post" action="{{ url_for('start_sprint_route', sprint_id=sprint.sprint_id) }}">
+                                <button class="btn btn-success btn-sm"><i data-lucide="play"></i> Start</button>
+                            </form>
+                            {% elif sprint.status == 'active' %}
+                            <a href="{{ url_for('sprint_board', sprint_id=sprint.sprint_id) }}" class="btn btn-primary btn-sm">Board</a>
+                            {% else %}
+                            <a href="{{ url_for('sprint_board', sprint_id=sprint.sprint_id) }}" class="btn btn-ghost btn-sm">View</a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="backlog-empty" style="padding:2rem;">
+                <div class="backlog-empty-icon"><i data-lucide="flag"></i></div>
+                <div class="text-muted">No sprints yet.</div>
+                <div class="text-xs text-muted mt-1">Create a sprint, add backlog tasks to it, then start it.</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- ── Events Section ── -->
+<div class="card mt-2">
+    <div class="card-header">
+        <div class="card-title"><i data-lucide="calendar-days"></i> Events <span class="col-count" style="margin-left:0.4rem">{{ events|length }}</span></div>
+        <button class="btn btn-primary btn-sm" onclick="document.getElementById('new-event-modal').classList.add('visible')"><i data-lucide="plus"></i> New Event</button>
+    </div>
+    {% if events %}
+    <div class="backlog-list">
+        {% for ev in events %}
+        <div class="backlog-item" style="{% if ev.on_date < today_str %}opacity:0.55{% endif %}">
+            <div class="backlog-item-body">
+                <div class="backlog-item-title">{{ ev.title }}</div>
+                <div class="backlog-item-meta">
+                    <span class="text-xs" style="color:var(--purple);font-weight:600;"><i data-lucide="calendar-days"></i> {{ ev.on_date | short_date }}{% if ev.on_time %} · {{ ev.on_time }}{% endif %}</span>
+                    {% if ev.location %}<span class="text-xs text-muted"><i data-lucide="map-pin"></i> {{ ev.location }}</span>{% endif %}
+                    {% if ev.description %}<span class="text-xs text-muted">{{ ev.description }}</span>{% endif %}
+                </div>
+            </div>
+            <div class="backlog-item-actions">
+                <form method="post" action="{{ url_for('delete_event_route', event_id=ev.event_id) }}"
+                      onsubmit="return confirm('Delete event?')">
+                    <button class="btn btn-danger btn-sm"><i data-lucide="trash-2"></i></button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="backlog-empty" style="padding:1.5rem 1rem; text-align:center;">
+        <div class="backlog-empty-icon"><i data-lucide="calendar-days"></i></div>
+        <div class="text-muted" style="margin-bottom:0.5rem;">No events yet.</div>
+        <div class="text-xs text-muted">Add meetings, deadlines, or anything you need to attend.</div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- ── Modals ── -->
+
+<!-- New Task Modal -->
+<div class="modal-overlay" id="new-task-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">New Backlog Task</div>
+            <button class="modal-close" onclick="document.getElementById('new-task-modal').classList.remove('visible')"><i data-lucide="x"></i></button>
+        </div>
+        <form method="post" action="{{ url_for('create_task_route', project_id=project.project_id) }}">
+            <div class="form-group">
+                <label>Title <span class="required">*</span></label>
+                <input class="form-input" name="title" required autofocus>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea class="form-textarea" name="description"></textarea>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Priority</label>
+                    <select class="form-select" name="priority">
+                        {% for p in priorities %}<option value="{{ p }}" {% if p=='medium' %}selected{% endif %}>{{ p }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Due Date <span class="required">*</span></label>
+                    <input class="form-input" type="date" name="due_date" required>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Category</label>
+                    <input class="form-input" name="category" list="cat-list-modal"
+                           placeholder="e.g. Career, Health…" autocomplete="off"
+                           value="{{ project.category or '' }}">
+                    <datalist id="cat-list-modal">
+                        {% for c in categories %}<option value="{{ c }}">{% endfor %}
+                    </datalist>
+                </div>
+                <div class="form-group">
+                    <label>Label</label>
+                    <select class="form-select" name="label">
+                        <option value="">None</option>
+                        {% for l in labels %}<option value="{{ l }}">{{ l }}</option>{% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.4rem;">
+                    <label style="margin-bottom:0">Subtasks</label>
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="addSubtaskRow('subtask-rows-new')" style="font-size:0.75rem;padding:0.2rem 0.5rem;">+ Add</button>
+                </div>
+                <div id="subtask-rows-new"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('new-task-modal').classList.remove('visible')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Add to Backlog</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- New Sprint Modal -->
+<div class="modal-overlay" id="new-sprint-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">New Sprint</div>
+            <button class="modal-close" onclick="document.getElementById('new-sprint-modal').classList.remove('visible')"><i data-lucide="x"></i></button>
+        </div>
+        <form method="post" action="{{ url_for('create_sprint_route', project_id=project.project_id) }}">
+            <div class="form-group">
+                <label>Sprint Name <span class="required">*</span></label>
+                <input class="form-input" name="name" placeholder="e.g. Sprint 1, Week 12" required>
+            </div>
+            <div class="form-group">
+                <label>Sprint Goal</label>
+                <input class="form-input" name="goal" placeholder="What should be achieved?">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Start Date <span class="required">*</span></label>
+                    <input class="form-input" type="date" name="start_date" required>
+                </div>
+                <div class="form-group">
+                    <label>End Date <span class="required">*</span></label>
+                    <input class="form-input" type="date" name="end_date" required>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('new-sprint-modal').classList.remove('visible')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create Sprint</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Project Modal -->
+<div class="modal-overlay" id="edit-project-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">Edit Project</div>
+            <button class="modal-close" onclick="document.getElementById('edit-project-modal').classList.remove('visible')"><i data-lucide="x"></i></button>
+        </div>
+        <form method="post" action="{{ url_for('edit_project_route', project_id=project.project_id) }}">
+            <div class="form-group">
+                <label>Project Name <span class="required">*</span></label>
+                <input class="form-input" name="name" value="{{ project.name }}" required>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea class="form-textarea" name="description">{{ project.description or '' }}</textarea>
+            </div>
+            <div class="form-group">
+                <label>Category</label>
+                <input class="form-input" name="category" list="cat-list-edit"
+                       placeholder="e.g. Career, Health…" autocomplete="off"
+                       value="{{ project.category or '' }}">
+                <datalist id="cat-list-edit">
+                    {% for cat in categories %}<option value="{{ cat }}">{% endfor %}
+                </datalist>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('edit-project-modal').classList.remove('visible')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- DELETE Project Modal — type DELETE to confirm -->
+<div class="modal-overlay" id="delete-project-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title" style="color:var(--red)"><i data-lucide="alert-triangle"></i> Delete Project</div>
+            <button class="modal-close" onclick="document.getElementById('delete-project-modal').classList.remove('visible')"><i data-lucide="x"></i></button>
+        </div>
+        <div style="margin-bottom:1rem;">
+            <p class="text-sm" style="margin-bottom:0.5rem;">This will <strong>permanently delete</strong> the project <strong>{{ project.name }}</strong> and all of its:</p>
+            <ul style="font-size:0.82rem;color:var(--text-muted);padding-left:1.25rem;line-height:1.9;">
+                <li>{{ backlog_count }} backlog task{{ 's' if backlog_count != 1 }}</li>
+                <li>{{ sprints|length }} sprint{{ 's' if sprints|length != 1 }}</li>
+                <li>All comments and activity history</li>
+            </ul>
+            <p class="text-sm" style="margin-top:0.75rem;color:var(--red);font-weight:600;">This cannot be undone.</p>
+        </div>
+        <form method="post" action="{{ url_for('delete_project_route', project_id=project.project_id) }}">
+            <div class="form-group">
+                <label>Type <strong>DELETE</strong> to confirm</label>
+                <input class="form-input" name="confirm_delete" id="delete-confirm-input"
+                       placeholder="DELETE" autocomplete="off" oninput="checkDeleteConfirm(this)">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('delete-project-modal').classList.remove('visible')">Cancel</button>
+                <button type="submit" class="btn btn-danger" id="delete-confirm-btn" disabled>Delete Forever</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Task Modal -->
+<div class="modal-overlay" id="edit-task-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">Edit Task</div>
+            <button class="modal-close" onclick="document.getElementById('edit-task-modal').classList.remove('visible')"><i data-lucide="x"></i></button>
+        </div>
+        <form method="post" id="edit-task-form" action="">
+            <div class="form-group">
+                <label>Title <span class="required">*</span></label>
+                <input class="form-input" name="title" id="edit-title" required>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea class="form-textarea" name="description" id="edit-description"></textarea>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Priority</label>
+                    <select class="form-select" name="priority" id="edit-priority">
+                        {% for p in priorities %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Due Date</label>
+                    <input class="form-input" type="date" name="due_date" id="edit-due-date">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Category</label>
+                    <input class="form-input" name="category" id="edit-category" list="cat-list-edit-task" autocomplete="off">
+                    <datalist id="cat-list-edit-task">
+                        {% for c in categories %}<option value="{{ c }}">{% endfor %}
+                    </datalist>
+                </div>
+                <div class="form-group">
+                    <label>Label</label>
+                    <select class="form-select" name="label" id="edit-label">
+                        <option value="">None</option>
+                        {% for l in labels %}<option value="{{ l }}">{{ l }}</option>{% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('edit-task-modal').classList.remove('visible')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- New Event Modal -->
+<div class="modal-overlay" id="new-event-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">New Event</div>
+            <button class="modal-close" onclick="document.getElementById('new-event-modal').classList.remove('visible')"><i data-lucide="x"></i></button>
+        </div>
+        <form method="post" action="{{ url_for('create_event_route', project_id=project.project_id) }}">
+            <div class="form-group">
+                <label>Title <span class="required">*</span></label>
+                <input class="form-input" name="title" required autofocus>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea class="form-textarea" name="description" style="min-height:60px"></textarea>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Date <span class="required">*</span></label>
+                    <input class="form-input" type="date" name="on_date" required>
+                </div>
+                <div class="form-group">
+                    <label>Time <span class="text-muted" style="font-weight:400">(optional)</span></label>
+                    <input class="form-input" type="time" name="on_time">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Location <span class="text-muted" style="font-weight:400">(optional)</span></label>
+                <input class="form-input" name="location" placeholder="e.g. Room 3B, Online, Venue name…">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('new-event-modal').classList.remove('visible')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create Event</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Task Detail Modal -->
+<div class="modal-overlay" id="task-modal" onclick="if(event.target===this)closeDrawer()">
+    <div class="modal" style="width:520px;" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <div class="modal-title" id="drawer-title">Loading…</div>
+            <button class="modal-close" onclick="closeDrawer()"><i data-lucide="x"></i></button>
+        </div>
+        <div id="drawer-body"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const today_str = "{{ today_str }}";
+
+// ── Delete confirm ────────────────────────────────────────────────────────────
+function checkDeleteConfirm(input) {
+    document.getElementById('delete-confirm-btn').disabled = (input.value !== 'DELETE');
+}
+
+// ── Checkbox / assign bar ─────────────────────────────────────────────────────
+function getChecked() {
+    return [...document.querySelectorAll('.task-cb:checked')];
+}
+function onCheckboxChange() {
+    const checked = getChecked();
+    const bar = document.getElementById('assign-bar');
+    bar.style.display = checked.length > 0 ? 'block' : 'none';
+    document.getElementById('selected-count').textContent = checked.length;
+    document.getElementById('edit-task-btn').style.display = checked.length === 1 ? 'inline-flex' : 'none';
+    // Keep select-all in sync
+    const all = document.querySelectorAll('.task-cb');
+    document.getElementById('select-all-cb').checked = checked.length === all.length && all.length > 0;
+}
+function toggleSelectAll(master) {
+    document.querySelectorAll('.task-cb').forEach(cb => { cb.checked = master.checked; });
+    onCheckboxChange();
+}
+function clearAll() {
+    document.querySelectorAll('.task-cb').forEach(cb => cb.checked = false);
+    document.getElementById('select-all-cb').checked = false;
+    onCheckboxChange();
+}
+function copyCheckboxes() {
+    const sprint = document.getElementById('sprint-select').value;
+    if (!sprint) { alert('Please choose a sprint first.'); return false; }
+    const container = document.getElementById('hidden-checkboxes');
+    container.innerHTML = '';
+    getChecked().forEach(cb => {
+        const h = document.createElement('input');
+        h.type = 'hidden'; h.name = 'task_ids'; h.value = cb.value;
+        container.appendChild(h);
+    });
+    if (container.children.length === 0) { alert('No tasks selected.'); return false; }
+    return true;
+}
+
+// ── Edit Task Modal ───────────────────────────────────────────────────────────
+function openEditModal() {
+    const taskId = getChecked()[0].value;
+    fetch(`/api/tasks/${taskId}`).then(r => r.json()).then(t => {
+        document.getElementById('edit-task-form').action = `/tasks/${t.task_id}/edit`;
+        document.getElementById('edit-title').value = t.title;
+        document.getElementById('edit-description').value = t.description;
+        document.getElementById('edit-priority').value = t.priority;
+        document.getElementById('edit-due-date').value = t.due_date;
+        document.getElementById('edit-category').value = t.category;
+        document.getElementById('edit-label').value = t.label;
+        document.getElementById('edit-task-modal').classList.add('visible');
+    });
+}
+
+// ── Task Detail Modal ─────────────────────────────────────────────────────────
+function openDrawer(taskId) {
+    document.getElementById('task-modal').classList.add('visible');
+    document.getElementById('drawer-title').textContent = 'Loading…';
+    document.getElementById('drawer-body').innerHTML = '';
+    fetch(`/api/tasks/${taskId}`).then(r=>r.json()).then(t=>{
+        document.getElementById('drawer-title').textContent = t.title;
+        const subtasksHtml = t.subtasks.length ? `
+            <div class="drawer-section">
+                <div class="drawer-section-title">Subtasks (${t.subtasks.filter(s=>s.status==='done').length}/${t.subtasks.length})</div>
+                <div class="subtask-list">${t.subtasks.map(s=>`
+                    <div class="subtask-item ${s.status==='done'?'done':''}" id="st-${s.task_id}">
+                        <input type="checkbox" class="subtask-check" ${s.status==='done'?'checked':''} onchange="completeSubtask(${s.task_id},this)" ${s.status==='done'?'disabled':''}>
+                        <span class="subtask-title">${s.title}</span>
+                    </div>`).join('')}</div>
+                <form method="post" action="/tasks/${t.task_id}/subtask/create" style="margin-top:0.75rem;display:flex;gap:0.5rem;">
+                    <input class="form-input" name="title" placeholder="Add subtask…" required>
+                    <input type="hidden" name="priority" value="medium">
+                    <button class="btn btn-primary btn-sm">+</button>
+                </form>
+            </div>` : `
+            <div class="drawer-section">
+                <div class="drawer-section-title">Subtasks</div>
+                <form method="post" action="/tasks/${t.task_id}/subtask/create" style="display:flex;gap:0.5rem;">
+                    <input class="form-input" name="title" placeholder="Add subtask…" required>
+                    <input type="hidden" name="priority" value="medium">
+                    <button class="btn btn-primary btn-sm">+</button>
+                </form>
+            </div>`;
+        document.getElementById('drawer-body').innerHTML = `
+            <div class="drawer-section">
+                <div class="drawer-meta-grid">
+                    <div class="drawer-meta-item"><div class="drawer-meta-label">Priority</div><span class="priority-${t.priority}">${t.priority}</span></div>
+                    <div class="drawer-meta-item"><div class="drawer-meta-label">Due Date</div>${t.due_date||'—'}</div>
+                    <div class="drawer-meta-item"><div class="drawer-meta-label">Category</div>${t.category||'—'}</div>
+                    <div class="drawer-meta-item"><div class="drawer-meta-label">Label</div>${t.label||'—'}</div>
+                </div>
+            </div>
+            ${t.description?`<div class="drawer-section"><div class="drawer-section-title">Description</div><div class="text-sm">${t.description}</div></div>`:''}
+            ${subtasksHtml}
+            <div class="drawer-section flex gap-1">
+                <form method="post" action="/tasks/${t.task_id}/delete" onsubmit="return confirm('Delete?')">
+                    <button class="btn btn-danger btn-sm"><i data-lucide="trash-2"></i> Delete</button>
+                </form>
+            </div>`;
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    });
+}
+function closeDrawer() {
+    document.getElementById('task-modal').classList.remove('visible');
+}
+function completeSubtask(taskId, cb) {
+    fetch(`/api/tasks/${taskId}/subtask/complete`,{method:'POST'})
+        .then(r=>r.json()).then(d=>{
+            if(d.success){document.getElementById(`st-${taskId}`).classList.add('done');cb.disabled=true;}
+            else{alert(d.error);cb.checked=false;}
+        });
+}
+
+// ── Subtask row builder ───────────────────────────────────────────────────────
+function addSubtaskRow(containerId) {
+    const container = document.getElementById(containerId);
+    const idx = container.children.length;
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:0.4rem;margin-bottom:0.4rem;align-items:center;';
+    row.innerHTML = `<input class="form-input" name="subtask_titles" placeholder="Subtask ${idx+1}…" style="flex:1">
+        <button type="button" onclick="this.parentElement.remove()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.1rem;line-height:1;">×</button>`;
+    container.appendChild(row);
+    container.lastChild.querySelector('input').focus();
+}
+
+// ── Duplicate selected tasks ──────────────────────────────────────────────────
+function duplicateSelected() {
+    const ids = getChecked().map(cb => cb.value);
+    if (!ids.length) return;
+    const form = document.createElement('form');
+    form.method = 'post';
+    form.action = '/backlog/duplicate-bulk';
+    ids.forEach(id => {
+        const h = document.createElement('input');
+        h.type = 'hidden'; h.name = 'task_ids'; h.value = id;
+        form.appendChild(h);
+    });
+    const pid = document.createElement('input');
+    pid.type = 'hidden'; pid.name = 'project_id'; pid.value = '{{ project.project_id }}';
+    form.appendChild(pid);
+    document.body.appendChild(form);
+    form.submit();
+}
+</script>
+{% endblock %}

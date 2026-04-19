@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Progress — DeskFlo{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <div class="page-title"><i data-lucide="bar-chart-2"></i> Progress & Analytics</div>
+        <div class="page-subtitle">Click any category to see a detailed breakdown</div>
+    </div>
+    <a href="{{ url_for('index') }}" class="btn btn-ghost btn-sm">← Dashboard</a>
+</div>
+
+<!-- Category Donut Panels -->
+<div class="progress-page-grid">
+    {% for cat, pct in data.by_category.items() %}
+    {% set icons = {'Health':'heart-pulse','Finances':'dollar-sign','Academics':'book-open','Career':'briefcase','Personal':'leaf','Development':'code-2','Home':'home'} %}
+    <a href="{{ url_for('progress_category', category=cat) }}" class="cat-progress-panel">
+        <svg viewBox="0 0 100 100" class="cat-donut-svg">
+            <circle class="donut-bg" cx="50" cy="50" r="38" />
+            <circle class="donut-fill cat-stroke-{{ cat }}" cx="50" cy="50" r="38"
+                stroke-dasharray="{{ pct * 2.39 }}, 239"
+                stroke-dashoffset="60" />
+            <text x="50" y="46" class="donut-num">{{ pct }}%</text>
+            <text x="50" y="57" class="donut-sub">done</text>
+        </svg>
+        <div class="cat-panel-name"><i data-lucide="{{ icons.get(cat, 'folder') }}"></i> {{ cat }}</div>
+        <div class="cat-panel-stats">{{ data.cat_counts.get(cat, {}).get("done", 0) }} / {{ data.cat_counts.get(cat, {}).get("total", 0) }} tasks</div>
+        <div class="cat-panel-hint">click for details →</div>
+    </a>
+    {% else %}
+    <div class="text-muted text-sm" style="grid-column:1/-1;padding:2rem">
+        No task data yet. Create some tasks and complete them to see progress.
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Weekly Trend -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+    <div class="card">
+        <div class="card-header"><div class="card-title"><i data-lucide="trending-up"></i> Last 7 Days</div></div>
+        <div class="trend-chart">
+            {% set max_count = [data.weekly_trend | map(attribute='count') | max, 1] | max %}
+            {% for day in data.weekly_trend %}
+            <div class="trend-bar-wrap">
+                <div class="trend-bar-label">{{ day.count }}</div>
+                <div class="trend-bar-col">
+                    <div class="trend-bar-fill" style="height:{{ ((day.count / max_count) * 100)|int }}%"></div>
+                </div>
+                <div class="trend-day-label">{{ day.date[5:] }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Sprint History -->
+    <div class="card">
+        <div class="card-header"><div class="card-title"><i data-lucide="zap"></i> Sprint Velocity</div></div>
+        {% if data.sprint_history %}
+        <table class="log-table">
+            <thead><tr><th>Sprint</th><th>Done</th><th>Velocity</th></tr></thead>
+            <tbody>
+            {% for s in data.sprint_history %}
+            <tr>
+                <td><strong>{{ s.name }}</strong><br><span class="text-xs text-muted">{{ s.completed_at[:10] if s.completed_at else '—' }}</span></td>
+                <td>{{ s.done }}/{{ s.total }}</td>
+                <td>
+                    <div style="display:flex;align-items:center;gap:0.5rem">
+                        <div class="sprint-bar" style="width:80px"><div class="sprint-bar-fill" style="width:{{ s.velocity }}%"></div></div>
+                        <span class="text-xs text-muted">{{ s.velocity }}%</span>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="backlog-empty"><div class="backlog-empty-icon"><i data-lucide="zap"></i></div><div class="text-muted">No completed sprints yet.</div></div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+

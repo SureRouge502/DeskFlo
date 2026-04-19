@@ -1,0 +1,777 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — DeskFlo{% endblock %}
+
+{% block content %}
+
+<!-- ── Splash Overlay ── -->
+<audio id="splash-audio" src="/static/nothing_changed.mp3" preload="auto"></audio>
+<div id="splash-overlay">
+    <div class="splash-topbar"></div>
+    <div class="splash-corner tl"></div>
+    <div class="splash-corner tr"></div>
+    <div class="splash-corner bl"></div>
+    <div class="splash-corner br"></div>
+    <div class="splash-noise"></div>
+
+    <!-- Pre-drop phase (0–25s) -->
+    <div class="splash-pre" id="splash-pre">
+        <div class="splash-scan-line"></div>
+        <div class="splash-init-text">◆ &nbsp; I N I T I A L I Z I N G &nbsp; S Y S T E M &nbsp; ◆</div>
+        <div class="splash-skip-hint">— click to skip —</div>
+    </div>
+
+    <!-- Main content (revealed at beat drop, 25s) -->
+    <div class="splash-content" id="splash-main">
+        <div class="splash-logo-wrap">
+            <div class="splash-logo-text">DeskFlo v1.0</div>
+            <div class="splash-logo-sub">◆ &nbsp; M I S S I O N &nbsp; C O N T R O L &nbsp; ◆</div>
+        </div>
+
+        <div class="splash-divider"></div>
+
+        <div class="splash-id-block">
+            <div class="splash-id-label">▸ &nbsp; O P E R A T O R &nbsp; I D E N T I F I C A T I O N &nbsp; ◂</div>
+            <div class="splash-name" id="splash-name"></div>
+        </div>
+
+        <div class="splash-status-row">
+            <div class="splash-status-item">
+                <span class="splash-sl">STATUS</span>
+                <span class="splash-sv green">● FINE</span>
+            </div>
+            <div class="splash-status-sep">|</div>
+            <div class="splash-status-item">
+                <span class="splash-sl">SYSTEM</span>
+                <span class="splash-sv">ONLINE</span>
+            </div>
+            <div class="splash-status-sep">|</div>
+            <div class="splash-status-item">
+                <span class="splash-sl">THREAT</span>
+                <span class="splash-sv dim">NONE</span>
+            </div>
+        </div>
+
+        <div class="splash-prompt" id="splash-prompt">— &nbsp; C L I C K &nbsp; A N Y W H E R E &nbsp; T O &nbsp; C O N T I N U E &nbsp; —</div>
+    </div>
+
+    <div class="splash-bottom-bar">
+        <span class="splash-bl">DeskFlo v1.0</span>
+        <span class="splash-bl">RACCOON CITY, 1998</span>
+        <span class="splash-bl" id="splash-clock"></span>
+    </div>
+</div>
+
+<div class="dashboard-layout">
+
+    <!-- ── LEFT COLUMN ── -->
+    <div class="left-col">
+
+        <!-- Clock Panel -->
+        <div class="clock-card">
+            <svg class="analog-clock-face" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="60" cy="60" r="58" class="clock-face-bg"/>
+                <circle cx="60" cy="60" r="57" class="clock-face-rim"/>
+                <!-- Major ticks (12, 3, 6, 9) -->
+                <line x1="60" y1="4"  x2="60" y2="15" class="clock-tick-major" transform="rotate(0   60 60)"/>
+                <line x1="60" y1="4"  x2="60" y2="15" class="clock-tick-major" transform="rotate(90  60 60)"/>
+                <line x1="60" y1="4"  x2="60" y2="15" class="clock-tick-major" transform="rotate(180 60 60)"/>
+                <line x1="60" y1="4"  x2="60" y2="15" class="clock-tick-major" transform="rotate(270 60 60)"/>
+                <!-- Minor ticks -->
+                <line x1="60" y1="6"  x2="60" y2="14" class="clock-tick-minor" transform="rotate(30  60 60)"/>
+                <line x1="60" y1="6"  x2="60" y2="14" class="clock-tick-minor" transform="rotate(60  60 60)"/>
+                <line x1="60" y1="6"  x2="60" y2="14" class="clock-tick-minor" transform="rotate(120 60 60)"/>
+                <line x1="60" y1="6"  x2="60" y2="14" class="clock-tick-minor" transform="rotate(150 60 60)"/>
+                <line x1="60" y1="6"  x2="60" y2="14" class="clock-tick-minor" transform="rotate(210 60 60)"/>
+                <line x1="60" y1="6"  x2="60" y2="14" class="clock-tick-minor" transform="rotate(240 60 60)"/>
+                <line x1="60" y1="6"  x2="60" y2="14" class="clock-tick-minor" transform="rotate(300 60 60)"/>
+                <line x1="60" y1="6"  x2="60" y2="14" class="clock-tick-minor" transform="rotate(330 60 60)"/>
+                <!-- Hands -->
+                <line id="clock-hour" x1="60" y1="60" x2="60" y2="30" class="clock-hand-hour"/>
+                <line id="clock-min"  x1="60" y1="60" x2="60" y2="18" class="clock-hand-min"/>
+                <line id="clock-sec"  x1="60" y1="68" x2="60" y2="14" class="clock-hand-sec"/>
+                <circle cx="60" cy="60" r="3.5" class="clock-center-dot"/>
+            </svg>
+            <div id="clock-time" class="clock-time"></div>
+            <div class="clock-date-row">
+                <div id="clock-date" class="clock-date"></div>
+                <div id="clock-day"  class="clock-day"></div>
+            </div>
+        </div>
+
+        <!-- Sprint Snapshot Panel -->
+        <aside class="priority-panel">
+        <div class="snap-panel-title"><i data-lucide="zap"></i> Active Sprints</div>
+        {% if sprint_snapshots %}
+            {% for snap in sprint_snapshots %}
+            <div class="snap-card">
+                <div class="snap-card-header">
+                    <div>
+                        <div class="snap-sprint-name">{{ snap.sprint.name }}</div>
+                        <div class="text-xs text-muted">{{ snap.project_name }}</div>
+                    </div>
+                    <a href="{{ url_for('sprint_board', sprint_id=snap.sprint.sprint_id) }}" class="btn btn-ghost btn-sm">→</a>
+                </div>
+                <div class="snap-progress">
+                    <div class="sprint-bar"><div class="sprint-bar-fill" style="width:{{ snap.pct }}%"></div></div>
+                    <div class="snap-progress-label">
+                        <span>{{ snap.done }}/{{ snap.total }} done</span>
+                        <span>{% if snap.sprint.end_date %}ends {{ snap.sprint.end_date }}{% endif %}</span>
+                    </div>
+                </div>
+                {% if snap.top_task %}
+                <div class="snap-top-task {% if snap.top_task.due_date and snap.top_task.due_date < today_str %}overdue{% endif %}"
+                     onclick="openDrawer({{ snap.top_task.task_id }})">
+                    <span class="snap-top-label">Next up</span>
+                    <div class="snap-top-title">{{ snap.top_task.title }}</div>
+                    <div class="snap-top-meta">
+                        <span class="priority-{{ snap.top_task.priority }} text-xs">{{ snap.top_task.priority }}</span>
+                        {% if snap.top_task.due_date %}<span class="text-xs text-muted"><i data-lucide="calendar-days"></i> {{ snap.top_task.due_date | short_date }}</span>{% endif %}
+                    </div>
+                </div>
+                {% else %}
+                <div class="tier-empty" style="text-align:center;"><i data-lucide="check-circle"></i> All tasks done!</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% else %}
+        <div class="snap-empty">
+            <div class="no-sprint-icon" style="margin-bottom:0.5rem;"><i data-lucide="rocket"></i></div>
+            <div class="text-muted" style="font-size:0.82rem;">No active sprints.</div>
+            <a href="{{ url_for('projects_page') }}" class="text-xs" style="color:var(--accent);margin-top:0.4rem;display:block;">Start one →</a>
+        </div>
+        {% endif %}
+        </aside>
+
+    </div><!-- /.left-col -->
+
+    <!-- ── CENTER: Weekly Snapshot + High Priority ── -->
+    <main class="center-panel">
+
+        <!-- Top 60%: Weekly Snapshot -->
+        <div class="center-top">
+            <div class="center-top-header">
+                {% if active_sprint %}
+                <div>
+                    <span class="board-sprint-name"><i data-lucide="zap"></i> {{ active_sprint.name }}</span>
+                    <span class="text-xs text-muted"> · ends {{ active_sprint.end_date }}</span>
+                </div>
+                {% else %}
+                <span class="board-sprint-name text-muted">No Active Sprint</span>
+                <a href="{{ url_for('projects_page') }}" class="btn btn-primary btn-sm">Start One →</a>
+                {% endif %}
+            </div>
+
+            {% if active_sprint %}
+            <!-- Mini stat cards -->
+            <div class="weekly-stats">
+                <div class="weekly-stat-card stat-todo">
+                    <div class="wstat-num">{{ board.todo|length }}</div>
+                    <div class="wstat-label">To Do</div>
+                </div>
+                <div class="weekly-stat-card stat-inprogress">
+                    <div class="wstat-num">{{ board.inprogress|length }}</div>
+                    <div class="wstat-label">In Progress</div>
+                </div>
+                <div class="weekly-stat-card stat-done">
+                    <div class="wstat-num">{{ board.done|length }}</div>
+                    <div class="wstat-label">Done</div>
+                </div>
+                <div class="weekly-stat-card stat-total">
+                    <div class="wstat-num">{{ (board.todo|length) + (board.inprogress|length) + (board.done|length) }}</div>
+                    <div class="wstat-label">Total</div>
+                </div>
+            </div>
+
+            <!-- Compact board -->
+            <div class="mini-board">
+                {% for col_key, col_label in [('todo','To Do'),('inprogress','In Progress'),('done','Done')] %}
+                <div class="board-col col-{{ col_key }}"
+                     ondragover="event.preventDefault(); this.querySelector('.board-col-body').classList.add('drag-over')"
+                     ondragleave="this.querySelector('.board-col-body').classList.remove('drag-over')"
+                     ondrop="handleDrop(event, '{{ col_key }}')">
+                    <div class="board-col-header">
+                        {{ col_label }} <span class="col-count">{{ board[col_key]|length }}</span>
+                    </div>
+                    <div class="board-col-body">
+                        {% for task in board[col_key] %}
+                        <div class="task-card"
+                             draggable="true"
+                             data-task-id="{{ task.task_id }}"
+                             ondragstart="handleDragStart(event)"
+                             onclick="openDrawer({{ task.task_id }})">
+                            <div class="task-card-title">{{ task.title }}</div>
+                            <div class="task-card-meta">
+                                <span class="priority-{{ task.priority }} text-xs">{{ task.priority }}</span>
+                                {% if task.due_date %}
+                                <span class="task-card-due {% if task.due_date < today_str %}overdue{% endif %}"><i data-lucide="calendar-days"></i> {{ task.due_date | short_date }}</span>
+                                {% endif %}
+                            </div>
+                            {% if task.subtask_count %}
+                            <div class="subtask-bar mt-1">
+                                <div class="subtask-bar-fill" style="width:{{ ((task.subtask_done or 0)/task.subtask_count*100)|int }}%"></div>
+                            </div>
+                            <div class="subtask-progress">{{ task.subtask_done or 0 }}/{{ task.subtask_count }} subtasks</div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                        {% if col_key == 'todo' and upcoming_events %}
+                        {% if board['todo'] %}<div style="height:1px;background:var(--border);margin:0.35rem 0;"></div>{% endif %}
+                        {% for ev in upcoming_events %}
+                        <div class="task-card" style="border-color:var(--purple);cursor:default;" title="{{ ev.project_name }}">
+                            <div style="font-size:0.65rem;font-weight:700;color:var(--purple);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.25rem;"><i data-lucide="calendar-days"></i> Event</div>
+                            <div class="task-card-title">{{ ev.title }}</div>
+                            <div class="task-card-meta">
+                                <span class="text-xs" style="color:var(--purple);">{{ ev.on_date | short_date }}{% if ev.on_time %} · {{ ev.on_time }}{% endif %}</span>
+                                {% if ev.location %}<span class="text-xs text-muted"><i data-lucide="map-pin"></i> {{ ev.location }}</span>{% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="no-sprint">
+                <div class="no-sprint-icon"><i data-lucide="rocket"></i></div>
+                <h3>No Active Sprint</h3>
+                <p>Go to a project and start a sprint to see your board here.</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Bottom 40%: High Priority + Quote -->
+        <div class="center-bottom">
+            <div class="center-bottom-split">
+                <div class="center-bottom-tasks">
+                    <div class="center-bottom-header"><i data-lucide="zap"></i> Upcoming Tasks</div>
+                    <div class="high-priority-list">
+                        {# All active sprint tasks, sorted by due date (soonest first) #}
+                        {% if upcoming_tasks %}
+                            {% for task in upcoming_tasks %}
+                            <div class="hp-task-item {% if loop.index <= 3 %}hp-top{% endif %} {% if task.due_date and task.due_date < today_str %}overdue{% endif %}"
+                                 onclick="openDrawer({{ task.task_id }})">
+                                {% if loop.index <= 3 %}
+                                <span class="hp-rank">#{{ loop.index }}</span>
+                                {% endif %}
+                                <span class="hp-priority-dot priority-{{ task.priority }}">■</span>
+                                <span class="hp-task-title {% if loop.index <= 3 %}hp-task-title-bold{% endif %}">{{ task.title }}</span>
+                                <span class="project-cat cat-{{ task.category }}">{{ task.category }}</span>
+                                {% if task.due_date %}
+                                <span class="text-xs text-muted"><i data-lucide="calendar-days"></i> {{ task.due_date | short_date }}</span>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="tier-empty" style="padding:1.5rem">No active sprint tasks right now.</div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="quote-panel" id="quote-panel">
+                    <div class="quote-text" id="quote-text">Loading…</div>
+                    <div class="quote-mode-tag" id="quote-mode-tag"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- ── RIGHT: Progress + Calendar ── -->
+    <aside class="right-panel">
+
+        <!-- Progress Panel — fully clickable -->
+        <a href="{{ url_for('progress_page') }}" class="progress-panel-link">
+            <div class="progress-card">
+                <div class="progress-card-title"><i data-lucide="bar-chart-2"></i> Your Progress <span class="text-xs" style="float:right;opacity:0.5">click for details →</span></div>
+
+                <!-- Donut chart -->
+                <div class="donut-wrap">
+                    <svg viewBox="0 0 100 100" class="donut-svg">
+                        <circle class="donut-bg" cx="50" cy="50" r="38" />
+                        <circle class="donut-fill" cx="50" cy="50" r="38"
+                            stroke-dasharray="{{ stats.all_time * 2 }}, 239"
+                            stroke-dashoffset="60" />
+                        <text x="50" y="46" class="donut-num">{{ stats.sprint_progress.percent if stats.sprint_progress else 0 }}%</text>
+                        <text x="50" y="57" class="donut-sub">sprint</text>
+                    </svg>
+                </div>
+
+                <!-- Category breakdown -->
+                <div class="cat-breakdown">
+                    {% for cat, pct in category_progress.items() %}
+                    <div class="cat-row">
+                        <span class="cat-row-label project-cat cat-{{ cat }}">{{ cat }}</span>
+                        <div class="cat-bar-wrap">
+                            <div class="cat-bar-fill" style="width:{{ pct }}%"></div>
+                        </div>
+                        <span class="cat-row-pct">{{ pct }}%</span>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="progress-footer-stats">
+                    <div class="stat-row">
+                        <span class="stat-label"><i data-lucide="check-circle"></i> All-time</span>
+                        <span class="stat-value green">{{ stats.all_time }}</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label"><i data-lucide="calendar-days"></i> This month</span>
+                        <span class="stat-value">{{ stats.this_month }}</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label"><i data-lucide="alert-triangle"></i> Overdue</span>
+                        <span class="stat-value {% if stats.overdue > 0 %}red{% endif %}">{{ stats.overdue }}</span>
+                    </div>
+                    {% if stats.streak > 0 %}
+                    <div class="streak-row">
+                        <span class="streak-icon"><i data-lucide="zap"></i></span>
+                        <span class="streak-text">{{ stats.streak }} day streak!</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </a>
+
+        <!-- Calendar -->
+        <div class="calendar-card">
+            <div class="cal-header">
+                <button class="cal-nav" id="cal-prev">‹</button>
+                <div class="cal-title" id="cal-month-label">{{ month_name }} {{ year }}</div>
+                <button class="cal-nav" id="cal-next">›</button>
+            </div>
+            <div class="cal-grid">
+                {% for d in ['Su','Mo','Tu','We','Th','Fr','Sa'] %}
+                <div class="cal-day-name">{{ d }}</div>
+                {% endfor %}
+                {% for week in cal_matrix %}
+                    {% for day in week %}
+                    {% if day == 0 %}
+                    <div class="cal-day empty"></div>
+                    {% else %}
+                    {% set date_str = '%s-%02d-%02d'|format(year, month, day) %}
+                    <div class="cal-day
+                        {% if day == today_day %}today{% endif %}
+                        {% if date_str in due_dates %}has-tasks{% endif %}"
+                         data-date="{{ date_str }}"
+                         onclick="calDayClick(this)">{{ day }}</div>
+                    {% endif %}
+                    {% endfor %}
+                {% endfor %}
+            </div>
+        </div>
+    </aside>
+</div>
+
+<!-- Task Detail Modal -->
+<div class="modal-overlay" id="task-modal" onclick="if(event.target===this)closeDrawer()">
+    <div class="modal" style="width:520px;" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <div class="modal-title" id="drawer-title">Loading…</div>
+            <button class="modal-close" onclick="closeDrawer()"><i data-lucide="x"></i></button>
+        </div>
+        <div id="drawer-body"></div>
+    </div>
+</div>
+
+<!-- Calendar Popup -->
+<div class="cal-popup" id="cal-popup"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Splash Screen ─────────────────────────────────────────────────────────────
+(function() {
+    const overlay = document.getElementById('splash-overlay');
+    if (!overlay) return;
+    if (sessionStorage.getItem('splashSeen')) { overlay.remove(); return; }
+
+    const audio   = document.getElementById('splash-audio');
+    const preEl   = document.getElementById('splash-pre');
+    const nameEl  = document.getElementById('splash-name');
+    const clockEl = document.getElementById('splash-clock');
+
+    // Clock
+    function tick() {
+        clockEl.textContent = new Date().toLocaleTimeString('en-US', { hour12: false });
+    }
+    tick(); setInterval(tick, 1000);
+
+    let dismissed = false;
+    let dropTimer = null;
+    let autoFadeTimer = null;
+
+    function dismiss() {
+        if (dismissed) return;
+        dismissed = true;
+        clearTimeout(dropTimer);
+        clearTimeout(autoFadeTimer);
+        sessionStorage.setItem('splashSeen', '1');
+        // Fade audio out over ~1.2s
+        let vol = audio.volume;
+        const step = setInterval(() => {
+            vol = Math.max(0, vol - 0.05);
+            audio.volume = vol;
+            if (vol <= 0) { clearInterval(step); audio.pause(); }
+        }, 60);
+        overlay.classList.add('splash-out');
+        setTimeout(() => overlay.remove(), 950);
+    }
+
+    function revealSplash() {
+        preEl.style.transition = 'opacity 0.6s ease';
+        preEl.style.opacity = '0';
+        setTimeout(() => { preEl.style.display = 'none'; }, 600);
+        overlay.classList.add('splash-revealed');
+        // Typewriter after logo fades in
+        const text = 'Welcome, SureRouge502.';
+        let i = 0;
+        setTimeout(function type() {
+            if (i < text.length) {
+                nameEl.textContent += text[i++];
+                setTimeout(type, 72);
+            } else {
+                setTimeout(() => {
+                    const prompt = document.getElementById('splash-prompt');
+                    prompt.style.opacity = '1';
+                    prompt.style.animation = 'splash-fade-in 0.6s ease both, splash-blink 1.3s step-end infinite';
+                }, 400);
+            }
+        }, 600);
+        // Auto-dismiss 9s after beat drop
+        autoFadeTimer = setTimeout(dismiss, 8000);
+    }
+
+    function startSequence() {
+        dropTimer = setTimeout(revealSplash, 7000);
+        overlay.addEventListener('click', dismiss);
+    }
+
+    // Attempt autoplay — sequence only starts once audio is confirmed playing.
+    // If the browser blocks autoplay, we wait for a single click to start it,
+    // then clicks after that skip as normal.
+    audio.volume = 1;
+    audio.currentTime = 18;
+    audio.play().then(() => {
+        startSequence();
+    }).catch(() => {
+        const initEl = preEl.querySelector('.splash-init-text');
+        const hintEl = preEl.querySelector('.splash-skip-hint');
+        if (initEl) initEl.textContent = '◆   C L I C K   T O   B E G I N   ◆';
+        if (hintEl) hintEl.style.display = 'none';
+        overlay.addEventListener('click', function onInit() {
+            overlay.removeEventListener('click', onInit);
+            audio.play().catch(() => {});
+            startSequence();
+        }, { once: true });
+    });
+})();
+
+const TODAY = "{{ today_str }}";
+let dragTaskId = null;
+
+// ── Drag & Drop ──────────────────────────────────────────────────────────────
+function handleDragStart(e) {
+    dragTaskId = e.currentTarget.dataset.taskId;
+    e.currentTarget.classList.add('dragging');
+}
+function handleDrop(e, newStatus) {
+    e.preventDefault();
+    e.currentTarget.querySelector('.board-col-body').classList.remove('drag-over');
+    if (!dragTaskId) return;
+    fetch(`/api/tasks/${dragTaskId}/move`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({status: newStatus})
+    }).then(r => r.json()).then(d => {
+        if (d.success) location.reload();
+        else alert(d.error);
+    });
+}
+document.addEventListener('dragend', () => {
+    document.querySelectorAll('.task-card').forEach(c => c.classList.remove('dragging'));
+    document.querySelectorAll('.board-col-body').forEach(c => c.classList.remove('drag-over'));
+});
+
+// ── Task Detail Modal ─────────────────────────────────────────────────────────
+function openDrawer(taskId) {
+    document.getElementById('task-modal').classList.add('visible');
+    document.getElementById('drawer-title').textContent = 'Loading…';
+    document.getElementById('drawer-body').innerHTML = '';
+    fetch(`/api/tasks/${taskId}`).then(r => r.json()).then(renderDrawer);
+}
+function closeDrawer() {
+    document.getElementById('task-modal').classList.remove('visible');
+}
+function renderDrawer(t) {
+    document.getElementById('drawer-title').textContent = t.title;
+    const subtasksHtml = t.subtasks.length ? `
+        <div class="drawer-section">
+            <div class="drawer-section-title">Subtasks (${t.subtasks.filter(s=>s.status==='done').length}/${t.subtasks.length})</div>
+            <div class="subtask-list">
+            ${t.subtasks.map(s => `
+                <div class="subtask-item ${s.status==='done'?'done':''}" id="st-${s.task_id}">
+                    <input type="checkbox" class="subtask-check" ${s.status==='done'?'checked':''} onchange="completeSubtask(${s.task_id},this)" ${s.status==='done'?'disabled':''}>
+                    <span class="subtask-title">${s.title}</span>
+                    ${s.due_date?`<span class="text-xs text-muted">${s.due_date}</span>`:''}
+                </div>`).join('')}
+            </div>
+            <form method="post" action="/tasks/${t.task_id}/subtask/create" style="margin-top:0.75rem;display:flex;gap:0.5rem;">
+                <input class="form-input" name="title" placeholder="Add subtask…" required>
+                <input type="hidden" name="priority" value="medium">
+                <button class="btn btn-primary btn-sm">+</button>
+            </form>
+        </div>` : `
+        <div class="drawer-section">
+            <div class="drawer-section-title">Subtasks</div>
+            <form method="post" action="/tasks/${t.task_id}/subtask/create" style="display:flex;gap:0.5rem;">
+                <input class="form-input" name="title" placeholder="Add subtask…" required>
+                <input type="hidden" name="priority" value="medium">
+                <button class="btn btn-primary btn-sm">+</button>
+            </form>
+        </div>`;
+    const commentsHtml = `
+        <div class="drawer-section">
+            <div class="drawer-section-title">Comments</div>
+            <div class="comment-list">
+            ${t.comments.map(c=>`
+                <div class="comment-item">
+                    <div class="comment-meta">${c.created_at}</div>
+                    <div>${c.content}</div>
+                </div>`).join('')}
+            </div>
+            <form class="comment-form" method="post" action="/tasks/${t.task_id}/comment">
+                <input class="form-input" name="content" placeholder="Add a comment…" required>
+                <button class="btn btn-primary btn-sm">Send</button>
+            </form>
+        </div>`;
+    document.getElementById('drawer-body').innerHTML = `
+        <div class="drawer-section">
+            <div class="drawer-meta-grid">
+                <div class="drawer-meta-item"><div class="drawer-meta-label">Status</div><span class="badge badge-${t.status}">${t.status}</span></div>
+                <div class="drawer-meta-item"><div class="drawer-meta-label">Priority</div><span class="priority-${t.priority}">${t.priority}</span></div>
+                <div class="drawer-meta-item"><div class="drawer-meta-label">Due Date</div>${t.due_date||'—'}</div>
+                <div class="drawer-meta-item"><div class="drawer-meta-label">Category</div>${t.category||'—'}</div>
+                <div class="drawer-meta-item"><div class="drawer-meta-label">Label</div>${t.label||'—'}</div>
+            </div>
+        </div>
+        ${t.description?`<div class="drawer-section"><div class="drawer-section-title">Description</div><div class="text-sm">${t.description}</div></div>`:''}
+        ${subtasksHtml}${commentsHtml}`;
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+function completeSubtask(taskId, cb) {
+    fetch(`/api/tasks/${taskId}/subtask/complete`,{method:'POST'})
+        .then(r=>r.json()).then(d=>{
+            if(d.success){document.getElementById(`st-${taskId}`).classList.add('done');cb.disabled=true;}
+            else{alert(d.error);cb.checked=false;}
+        });
+}
+
+// ── Calendar ─────────────────────────────────────────────────────────────────
+let calYear = {{ year }}, calMonth = {{ month }};
+function calDayClick(el) {
+    const date = el.dataset.date; if(!date) return;
+    fetch(`/api/calendar/date/${date}`).then(r=>r.json()).then(tasks => {
+        const popup = document.getElementById('cal-popup');
+        if(!tasks.length){popup.classList.remove('visible');return;}
+        const rect = el.getBoundingClientRect();
+        popup.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
+        popup.style.left = (rect.left + window.scrollX - 80) + 'px';
+        popup.innerHTML = `<div class="cal-popup-title"><i data-lucide="calendar-days"></i> ${date}</div>` +
+            tasks.map(t=>`<div class="cal-popup-item">
+                <span class="priority-dot dot-${t.priority}"></span>
+                ${t.title} <span class="text-muted">· ${t.project}</span>
+            </div>`).join('');
+        popup.classList.add('visible');
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    });
+}
+document.addEventListener('click', e => {
+    if(!e.target.classList.contains('cal-day')) document.getElementById('cal-popup').classList.remove('visible');
+});
+document.getElementById('cal-prev').onclick = () => navigateCal(-1);
+document.getElementById('cal-next').onclick = () => navigateCal(1);
+function navigateCal(dir) {
+    calMonth += dir;
+    if(calMonth < 1){calMonth=12;calYear--;}
+    if(calMonth > 12){calMonth=1;calYear++;}
+    document.getElementById('cal-month-label').textContent =
+        new Date(calYear,calMonth-1).toLocaleString('default',{month:'long'})+' '+calYear;
+}
+
+// ── Analog Clock + IP Timezone Sync ──────────────────────────────────────────
+(function() {
+    let tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+    function getParts(timezone) {
+        const now = new Date();
+        const dateParts = new Intl.DateTimeFormat('en-US', {
+            timeZone: timezone,
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+        }).formatToParts(now);
+        const p = {};
+        dateParts.forEach(({ type, value }) => { p[type] = value; });
+        return {
+            h: +p.hour % 24, m: +p.minute, s: +p.second,
+            todayStr: `${p.year}-${p.month}-${p.day}`,
+            day:  new Intl.DateTimeFormat('en-US', { timeZone: timezone, weekday: 'long' }).format(now),
+            date: new Intl.DateTimeFormat('en-US', { timeZone: timezone, month: 'long', day: 'numeric', year: 'numeric' }).format(now),
+        };
+    }
+
+    function syncCalendarToday(todayStr) {
+        document.querySelectorAll('.cal-day[data-date]').forEach(el => {
+            el.classList.toggle('today', el.dataset.date === todayStr);
+        });
+    }
+
+    function tick() {
+        const d = getPartsCache();
+        const secDeg  = d.s * 6;
+        const minDeg  = d.m * 6 + d.s * 0.1;
+        const hourDeg = (d.h % 12) * 30 + d.m * 0.5;
+        const hHand = document.getElementById('clock-hour');
+        const mHand = document.getElementById('clock-min');
+        const sHand = document.getElementById('clock-sec');
+        if (hHand) hHand.setAttribute('transform', `rotate(${hourDeg} 60 60)`);
+        if (mHand) mHand.setAttribute('transform',  `rotate(${minDeg}  60 60)`);
+        if (sHand) sHand.setAttribute('transform',  `rotate(${secDeg}  60 60)`);
+        const dayEl  = document.getElementById('clock-day');
+        const dateEl = document.getElementById('clock-date');
+        const timeEl = document.getElementById('clock-time');
+        if (dayEl)  dayEl.textContent  = d.day.toUpperCase();
+        if (dateEl) dateEl.textContent = d.date;
+        if (timeEl) timeEl.textContent =
+            `${String(d.h).padStart(2,'0')}:${String(d.m).padStart(2,'0')}:${String(d.s).padStart(2,'0')}`;
+    }
+
+    // Cache wrapper so tz changes are picked up without restarting interval
+    function getPartsCache() { return getParts(tz); }
+
+    tick();
+    setInterval(tick, 1000);
+
+    // Fetch IP-based timezone and correct calendar today highlight
+    fetch('https://ipapi.co/json/')
+        .then(r => r.json())
+        .then(data => {
+            if (data.timezone) tz = data.timezone;
+            syncCalendarToday(getParts(tz).todayStr);
+        })
+        .catch(() => syncCalendarToday(getParts(tz).todayStr));
+})();
+
+// ── Quote Rotator ────────────────────────────────────────────────────────────
+const QUOTES = {
+  maven: [
+    "The pain you feel today is the price of the man you're becoming.",
+    "You don't need motivation. You need discipline and a reason to bleed for.",
+    "Most men stop when it hurts. That's why most men never arrive.",
+    "Every task you abandon is a vote against the version of yourself you claim to want.",
+    "Discomfort is not a sign to stop. It's a sign you're somewhere worth being.",
+    "The world doesn't care about your feelings. It responds to your output.",
+    "Hard days are not punishments. They're invitations to prove your character.",
+    "You are not tired. You are untested. Push past the fiction.",
+    "The burden you carry shapes you. Don't set it down before you're forged.",
+    "Progress is made in the hours you didn't want to show up but did anyway.",
+    "Suffering with purpose is strength. Suffering without direction is just waste.",
+    "Nobody is coming to fix this for you. That's actually the good news.",
+    "Your ancestors survived worse with less. Act accordingly.",
+    "The version of you that quits today will haunt the version of you that needed to win.",
+    "Iron doesn't sharpen itself. Neither do you.",
+    "Excellence is not a trait. It's a decision made daily, especially on broken days.",
+    "What you do when no one is watching is your real resume.",
+    "The grind is not the enemy. Purposeless comfort is.",
+    "A scar means you survived. Get more scars. Build something from them.",
+    "The war is not out there. It's between who you are and who you must become.",
+    "Weakness is not permanent. But untrained weakness becomes a permanent ceiling.",
+    "You will not remember the days you rested when you shouldn't have.",
+    "Men who built empires didn't wait for the right mood.",
+    "Every time you do the hard thing, you buy yourself a better future self.",
+    "Don't romanticize the struggle. Just do the work. Every single day.",
+    "The right time is a myth invented by people who never made it.",
+    "You are the only variable you can fully control. Control it completely.",
+    "Mediocrity doesn't announce itself. It just shows up disguised as rest.",
+    "What you tolerate in yourself is what you become.",
+    "A man who finishes what he starts is rarer than talent.",
+    "The chaos outside is manageable. The chaos inside is the real battle.",
+    "You owe it to your future self to be relentless right now.",
+    "There is no version of the dream that doesn't require suffering first.",
+    "Silence your excuses. They're louder than your results.",
+    "One more. Always one more. That is the practice.",
+    "Build the habit of showing up. Everything else is negotiable.",
+    "The gap between you and where you want to be is made of days like today.",
+    "Pain is temporary. A man who quit when it got hard — that stays.",
+    "You're not behind. You're exactly where your choices brought you. Change the choices.",
+    "The work is the reward. The rest is just the scoreboard."
+  ],
+  naif: [
+    "You don't have to have it all figured out. Just take one step today.",
+    "It's okay that it's hard. Hard things are worth doing gently too.",
+    "You're allowed to be tired and still keep going. They're not opposites.",
+    "Small, consistent steps still reach the mountain top. Don't underestimate yourself.",
+    "You've survived every difficult day so far. Today will be one more.",
+    "Be kind to yourself in the process. You're learning, not failing.",
+    "Progress doesn't have to be loud. Quiet growth still counts.",
+    "You are doing better than you think. Breathe. Then continue.",
+    "Every day you try is a day you chose yourself. That matters.",
+    "There is no rush. There is only you, the work, and the next gentle step.",
+    "It's not about being perfect. It's about showing up with what you have.",
+    "Something small done with care beats something big done with none.",
+    "You are not behind. You are exactly where this version of the journey begins.",
+    "It's okay to rest. Rest is part of the work, not its enemy.",
+    "Your effort today — no matter how small — is still effort. Honor it.",
+    "The kindest thing you can do for your future self is to begin.",
+    "You're allowed to feel the weight of things and still move forward.",
+    "Healing and growing can happen at the same time. Be patient with both.",
+    "Even slow rivers reach the sea. Trust your pace.",
+    "You don't need to be fearless. You just need to be willing.",
+    "Today is enough. You are enough. Keep going.",
+    "One task completed with presence is worth ten rushed through anxiety.",
+    "You are not your worst day. You are the sum of every day you tried.",
+    "There's strength in softness too. Don't forget that.",
+    "The fact that you're here, trying, is already something beautiful.",
+    "You're building something that takes time. Give it time.",
+    "It's okay to not feel ready. Readiness is often just hindsight.",
+    "Every time you show up for yourself, you build trust with yourself.",
+    "The to-do list will always be there. So will your humanity. Balance both.",
+    "You're allowed to make this easier on yourself. That's wisdom, not weakness.",
+    "Progress feels invisible until one day it's undeniable. You're in the invisible stage.",
+    "The best version of you is built by the current version showing up.",
+    "You are not alone in this. Everyone building something hard feels this way sometimes.",
+    "Compassion for yourself is not laziness. It's sustainable fuel.",
+    "The task in front of you is manageable. Just this one. Just right now.",
+    "You've come further than yesterday. That's real.",
+    "It's okay to need a moment. Take it. Then gently return.",
+    "Your worth is not measured by your productivity. But your goals are worth chasing anyway.",
+    "Be the quiet kind of relentless. Steady, soft, and unstoppable.",
+    "You're doing something real. That deserves to be acknowledged."
+  ]
+};
+
+function getDailyQuote(mode) {
+    const bank = QUOTES[mode] || QUOTES.naif;
+    const day  = Math.floor(Date.now() / 86400000);
+    return bank[day % bank.length];
+}
+
+function setQuote(theme) {
+    const mode  = theme === 'dark' ? 'maven' : 'naif';
+    const el    = document.getElementById('quote-text');
+    const tag   = document.getElementById('quote-mode-tag');
+    if (!el) return;
+    el.classList.add('fading');
+    setTimeout(() => {
+        el.textContent  = getDailyQuote(mode);
+        tag.textContent = mode === 'maven' ? '— Maven Mode' : '— Naif Mode';
+        el.classList.remove('fading');
+    }, 350);
+}
+
+// Init quote on load
+const initTheme = document.documentElement.getAttribute('data-theme') || 'light';
+setQuote(initTheme);
+
+// Update quote when theme changes
+document.addEventListener('themeChanged', e => setQuote(e.detail));
+</script>
+{% endblock %}

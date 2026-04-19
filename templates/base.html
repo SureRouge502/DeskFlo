@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}DeskFlo{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    <script src="{{ url_for('static', filename='lucide.min.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script>
+        (function() {
+            const t = localStorage.getItem('deskflo-theme') || 'light';
+            document.documentElement.setAttribute('data-theme', t);
+        })();
+    </script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-inner">
+            <a href="{{ url_for('index') }}" class="nav-brand">
+                <span class="brand-icon">⬡</span>
+                <span class="brand-text">DeskFlo<span class="brand-suffix" id="brand-suffix"></span></span>
+            </a>
+            <ul class="nav-links">
+                <li><a href="{{ url_for('index') }}" class="nav-link {% if request.endpoint == 'index' %}active{% endif %}">Dashboard</a></li>
+                <li><a href="{{ url_for('projects_page') }}" class="nav-link {% if 'project' in (request.endpoint or '') %}active{% endif %}">Projects</a></li>
+                <li><a href="{{ url_for('progress_page') }}" class="nav-link {% if request.endpoint == 'progress_page' %}active{% endif %}">Progress</a></li>
+                <li><a href="{{ url_for('activity_log_page') }}" class="nav-link {% if request.endpoint == 'activity_log_page' %}active{% endif %}">Log</a></li>
+                <li><button class="theme-toggle" id="theme-toggle" title="Toggle dark mode"><i data-lucide="sun"></i></button></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="page-wrap">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-container">
+                {% for category, message in messages %}
+                    <div class="flash flash-{{ category }}">
+                        <span>{{ message }}</span>
+                        <button class="flash-close" onclick="this.parentElement.remove()"><i data-lucide="x"></i></button>
+                    </div>
+                {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('.flash').forEach(el => {
+            setTimeout(() => el.style.opacity = '0', 3800);
+            setTimeout(() => el.remove(), 4200);
+        });
+
+        const toggle = document.getElementById('theme-toggle');
+        const html   = document.documentElement;
+        const suffix = document.getElementById('brand-suffix');
+
+        function applyTheme(theme) {
+            html.setAttribute('data-theme', theme);
+            localStorage.setItem('deskflo-theme', theme);
+            toggle.innerHTML = theme === 'dark' ? '<i data-lucide="moon"></i>' : '<i data-lucide="sun"></i>';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            if (suffix) {
+                if (theme === 'dark') {
+                    suffix.textContent = ' Maven';
+                    suffix.className = 'brand-suffix brand-maven';
+                } else {
+                    suffix.textContent = ' Naif';
+                    suffix.className = 'brand-suffix brand-naif';
+                }
+            }
+            document.dispatchEvent(new CustomEvent('themeChanged', { detail: theme }));
+        }
+
+        applyTheme(localStorage.getItem('deskflo-theme') || 'light');
+
+        toggle.addEventListener('click', () => {
+            const current = html.getAttribute('data-theme');
+            applyTheme(current === 'dark' ? 'light' : 'dark');
+        });
+
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    });
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python init_db.py)",
+      "Bash(python -c \":*)",
+      "Bash(python -c \"import app; print\\(''OK''\\)\")",
+      "WebSearch"
+    ]
+  }
+}

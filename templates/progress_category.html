@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}{{ category }} Progress — DeskFlo{% endblock %}
+
+{% block content %}
+{% set icons = {'Health':'heart-pulse','Finances':'dollar-sign','Academics':'book-open','Career':'briefcase','Personal':'leaf','Development':'code-2','Home':'home'} %}
+{% set icon = icons.get(category, 'folder') %}
+
+<div class="page-header">
+    <div class="cat-detail-header">
+        <span class="cat-detail-badge"><i data-lucide="{{ icon }}"></i></span>
+        <div>
+            <div class="page-title">{{ category }}</div>
+            <div class="page-subtitle">Detailed task history and completion analytics</div>
+        </div>
+        <span class="project-cat cat-{{ category }}" style="font-size:0.85rem;padding:0.35rem 0.9rem;">{{ category }}</span>
+    </div>
+    <a href="{{ url_for('progress_page') }}" class="btn btn-ghost btn-sm">← Back to Progress</a>
+</div>
+
+<div class="cat-detail-grid">
+
+    <!-- Left: stat stack -->
+    <div class="cat-stat-stack">
+
+        <!-- Main donut -->
+        <div class="cat-stat-box" style="display:flex;flex-direction:column;align-items:center;gap:0.5rem;padding:1.5rem;">
+            <svg viewBox="0 0 120 120" style="width:130px;height:130px;">
+                <circle class="donut-bg" cx="60" cy="60" r="48" style="stroke-width:14;" />
+                <circle class="donut-fill cat-stroke-{{ category }}" cx="60" cy="60" r="48"
+                    stroke-dasharray="{{ data.pct * 3.016 }}, 301.6"
+                    stroke-dashoffset="75.4"
+                    style="stroke-width:14;fill:none;stroke-linecap:round;" />
+                <text x="60" y="56" class="donut-num" style="font-size:20px;">{{ data.pct }}%</text>
+                <text x="60" y="70" class="donut-sub" style="font-size:10px;">completed</text>
+            </svg>
+            <div style="font-size:0.82rem;color:var(--text-muted);">{{ data.done }} of {{ data.total }} tasks done</div>
+        </div>
+
+        <!-- Period pills -->
+        <div class="cat-stat-box">
+            <div class="cat-stat-box-title">Completed Tasks</div>
+            <div class="period-stats">
+                <div class="period-pill">
+                    <div class="period-pill-num">{{ data.today }}</div>
+                    <div class="period-pill-label">Today</div>
+                </div>
+                <div class="period-pill">
+                    <div class="period-pill-num">{{ data.this_week }}</div>
+                    <div class="period-pill-label">This Week</div>
+                </div>
+                <div class="period-pill">
+                    <div class="period-pill-num">{{ data.this_month }}</div>
+                    <div class="period-pill-label">This Month</div>
+                </div>
+                <div class="period-pill">
+                    <div class="period-pill-num">{{ data.all_time }}</div>
+                    <div class="period-pill-label">All Time</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Priority breakdown -->
+        <div class="cat-stat-box">
+            <div class="cat-stat-box-title">By Priority</div>
+            {% for pri, count in data.by_priority.items() %}
+            <div class="stat-row">
+                <span class="stat-label priority-{{ pri }}">{{ pri|capitalize }}</span>
+                <span class="stat-value">{{ count }}</span>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Weekly trend mini chart -->
+        <div class="cat-stat-box">
+            <div class="cat-stat-box-title">Last 7 Days</div>
+            <div class="trend-chart" style="height:100px;">
+                {% set max_c = [data.weekly_trend | map(attribute='count') | max, 1] | max %}
+                {% for day in data.weekly_trend %}
+                <div class="trend-bar-wrap">
+                    <div class="trend-bar-label">{{ day.count if day.count else '' }}</div>
+                    <div class="trend-bar-col">
+                        <div class="trend-bar-fill cat-bar-{{ category }}"
+                             style="height:{{ ((day.count / max_c) * 100)|int }}%"></div>
+                    </div>
+                    <div class="trend-day-label">{{ day.date[8:] }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Right: activity feed -->
+    <div class="card" style="overflow-y:auto;max-height:calc(100vh - 160px);">
+        <div class="card-header">
+            <div class="card-title"><i data-lucide="list-checks"></i> Completed Task History</div>
+            <span class="text-xs text-muted">{{ data.all_time }} total</span>
+        </div>
+
+        {% if data.by_day %}
+        <div class="cat-activity-feed">
+            {% for day_label, tasks in data.by_day.items() %}
+            <div class="activity-day-block">
+                <div class="activity-day-label">
+                    {{ day_label }}
+                    <span class="activity-day-count">{{ tasks|length }} completed</span>
+                </div>
+                {% for task in tasks %}
+                <div class="activity-task-row">
+                    <div class="activity-task-time">{{ task.time }}</div>
+                    <div style="flex:1;min-width:0;">
+                        <div class="activity-task-title">{{ task.title }}</div>
+                        <div class="activity-task-meta">
+                            <span class="badge badge-done">done</span>
+                            <span class="priority-{{ task.priority }} text-xs">{{ task.priority }}</span>
+                            {% if task.label %}<span class="text-xs text-muted">{{ task.label }}</span>{% endif %}
+                            <span class="activity-task-proj text-xs"><i data-lucide="folder"></i> {{ task.project_name or '—' }}</span>
+                            {% if task.sprint_name %}<span class="text-xs text-muted"><i data-lucide="zap"></i> {{ task.sprint_name }}</span>{% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="backlog-empty">
+            <div class="backlog-empty-icon">{{ icon }}</div>
+            <div class="text-muted">No completed tasks in {{ category }} yet.</div>
+            <div class="text-xs text-muted mt-1">Complete some tasks to see your history here.</div>
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}
+
